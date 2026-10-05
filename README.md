@@ -1,3 +1,6 @@
+Marc Arbelo Liria i Xavier Moreno Carril
+========================================
+
 PAV - P2: detección de actividad vocal (VAD)
 ============================================
 
