@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
 
   char	*input_wav, *output_vad, *output_wav;
 
-  DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ "2.0");
+  DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ "2.0"); // Analisis de los argumentos
 
   verbose    = args.verbose ? DEBUG_VAD : 0;
   input_wav  = args.input_wav;
