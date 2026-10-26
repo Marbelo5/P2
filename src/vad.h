@@ -12,6 +12,7 @@ const char *state2str(VAD_STATE st);
    (counts, thresholds, etc.) */
 
 typedef struct {
+   float potencia_soroll;
   VAD_STATE state;
   float sampling_rate;
   unsigned int frame_length;

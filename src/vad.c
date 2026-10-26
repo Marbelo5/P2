@@ -92,15 +92,16 @@ VAD_STATE vad(VAD_DATA *vad_data, float *x, float llindar) {
   switch (vad_data->state) {
   case ST_INIT:
     vad_data->state = ST_SILENCE;
+    vad_data->potencia_soroll = f.p;
     break;
 
   case ST_SILENCE:
-    if (f.p > llindar) // original --> 0.95
+    if (f.p > vad_data->potencia_soroll+llindar)
       vad_data->state = ST_VOICE;
     break;
 
   case ST_VOICE:
-    if (f.p < llindar)
+    if (f.p < vad_data->potencia_soroll+llindar)
       vad_data->state = ST_SILENCE;
     break;
 
