@@ -37,7 +37,7 @@ unsigned int vad_frame_size(VAD_DATA *);
 
     x: input frame
        It is assumed the length is frame_length */
-VAD_STATE vad(VAD_DATA *vad_data, float *x);
+VAD_STATE vad(VAD_DATA *vad_data, float *x, float llindar);
 
 /* Free memory
    Returns the state of the last (undecided) states. */
