@@ -23,8 +23,12 @@ int main(int argc, char *argv[]) {
   int frame_size;         /* in samples */
   float frame_duration;   /* in seconds */
   unsigned int t, last_t; /* in frames */
+  int t_decidido;         /* ultima trama en la que el estado no era UNDEF */
+  int t_cambio;           /* trama donde empieza el nuevo segmento */
 
   char	*input_wav, *output_vad, *output_wav;
+  float alfa1, alfa2;
+  int min_silence, min_voice, n_init;
 
   DocoptArgs args = docopt(argc, argv, /* help */ 1, /* version */ "2.0"); // Analisis de los argumentos
 
@@ -32,7 +36,13 @@ int main(int argc, char *argv[]) {
   input_wav  = args.input_wav;
   output_vad = args.output_vad;
   output_wav = args.output_wav;
-  float llindar=atof(args.llindar);
+
+  /* Parametros del automata */
+  alfa1       = atof(args.alfa1);
+  alfa2       = atof(args.alfa2);
+  min_silence = atoi(args.min_silence);
+  min_voice   = atoi(args.min_voice);
+  n_init      = atoi(args.n_init);
 
   if (input_wav == 0 || output_vad == 0) {
     fprintf(stderr, "%s\n", args.usage_pattern);
@@ -64,7 +74,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  vad_data = vad_open(sf_info.samplerate);
+  vad_data = vad_open(sf_info.samplerate, alfa1, alfa2, min_silence, min_voice, n_init);
   /* Allocate memory for buffers */
   frame_size   = vad_frame_size(vad_data);
   buffer       = (float *) malloc(frame_size * sizeof(float));
@@ -73,36 +83,65 @@ int main(int argc, char *argv[]) {
 
   frame_duration = (float) frame_size/ (float) sf_info.samplerate;
   last_state = ST_UNDEF;
+  t_decidido = -1;
 
   for (t = last_t = 0; ; t++) { /* For each frame ... */
     /* End loop when file has finished (or there is an error) */
     if  ((n_read = sf_read_float(sndfile_in, buffer, frame_size)) != frame_size) break;
 
     if (sndfile_out != 0) {
-      /* TODO: copy all the samples into sndfile_out */
+      /* copiamos la trama tal cual, si luego es silencio la ponemos a cero */
+      sf_write_float(sndfile_out, buffer, frame_size);
     }
 
-    state = vad(vad_data, buffer, llindar);
+    state = vad(vad_data, buffer);
     if (verbose & DEBUG_VAD) vad_show_state(vad_data, stdout);
 
-    /* TODO: print only SILENCE and VOICE labels */
-    /* As it is, it prints UNDEF segments but is should be merge to the proper value */
-    if (state != last_state) {
-      if (t != last_t)
-        fprintf(vadfile, "%.5f\t%.5f\t%s\n", last_t * frame_duration, t * frame_duration, state2str(last_state));
-      last_state = state;
-      last_t = t;
-    }
+    /* Solo miramos los estados S y V. Las tramas UNDEF se quedan esperando:
+       cuando se decide el estado, el cambio empieza justo despues de la
+       ultima trama decidida (que es cuando entramos en el maybe) */
+    if (state != ST_UNDEF) {
+      if (state != last_state) {
+        t_cambio = t_decidido + 1;
+        if (last_state != ST_UNDEF)
+          fprintf(vadfile, "%.5f\t%.5f\t%s\n", last_t * frame_duration, t_cambio * frame_duration, state2str(last_state));
+        last_state = state;
+        last_t = t_cambio;
+      }
 
-    if (sndfile_out != 0) {
-      /* TODO: go back and write zeros in silence segments */
+      if (sndfile_out != 0 && state == ST_SILENCE) {
+        /* volvemos atras y escribimos ceros desde la ultima trama decidida
+           hasta la actual (incluye las tramas maybe que eran silencio) */
+        sf_seek(sndfile_out, (t_decidido + 1) * frame_size, SEEK_SET);
+        for (i = t_decidido + 1; i <= (int) t; i++)
+          sf_write_float(sndfile_out, buffer_zeros, frame_size);
+      }
+
+      t_decidido = t;
     }
   }
 
   state = vad_close(vad_data);
-  /* TODO: what do you want to print, for last frames? */
-  if (t != last_t)
-    fprintf(vadfile, "%.5f\t%.5f\t%s\n", last_t * frame_duration, t * frame_duration + n_read / (float) sf_info.samplerate, state2str(state));
+  /* Las ultimas tramas indecisas se quedan con el ultimo estado decidido
+     (vad_close nos dice lo mismo: maybe silence -> V, maybe voice -> S) */
+  if (last_state == ST_UNDEF)
+    last_state = state;
+  fprintf(vadfile, "%.5f\t%.5f\t%s\n", last_t * frame_duration, t * frame_duration + n_read / (float) sf_info.samplerate, state2str(last_state));
+
+  if (sndfile_out != 0) {
+    if (last_state == ST_SILENCE) {
+      /* tramas indecisas del final que eran silencio */
+      sf_seek(sndfile_out, (t_decidido + 1) * frame_size, SEEK_SET);
+      for (i = t_decidido + 1; i < (int) t; i++)
+        sf_write_float(sndfile_out, buffer_zeros, frame_size);
+      /* y el trozo de la ultima trama incompleta */
+      if (n_read > 0)
+        sf_write_float(sndfile_out, buffer_zeros, n_read);
+    }
+    else if (n_read > 0) {
+      sf_write_float(sndfile_out, buffer, n_read);
+    }
+  }
 
   /* clean up: free memory, close open files */
   free(buffer);

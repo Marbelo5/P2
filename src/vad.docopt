@@ -9,7 +9,11 @@ Options:
    -i FILE, --input-wav=FILE   WAVE file for voice activity detection
    -o FILE, --output-vad=FILE  Label file with the result of VAD
    -w FILE, --output-wav=FILE  WAVE file with silences cleared
-   -l REAL, --llindar=REAL     llindar de decisió de veu i silenci [default: -40]
+   -1 REAL, --alfa1=REAL       Margen en dB sobre k0 para el umbral k1 [default: 4]
+   -2 REAL, --alfa2=REAL       Margen en dB sobre k1 para el umbral k2 [default: 6]
+   -s INT, --min-silence=INT   Tramas minimas para confirmar silencio [default: 12]
+   -m INT, --min-voice=INT     Tramas maximas en maybe voice [default: 15]
+   -n INT, --n-init=INT        Tramas iniciales para calcular k0 [default: 10]
    -v, --verbose  Show debug information
    -h, --help     Show this screen
    --version      Show the version of the project
